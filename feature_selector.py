@@ -5,6 +5,9 @@ import lightgbm as lgb
 
 from sklearn.model_selection import KFold
 
+import matplotlib.pyplot as plt
+import seaborn as sns
+
 import gc
 
 from sklearn.exceptions import NotFittedError
@@ -144,10 +147,10 @@ class FeatureSelector():
         for column in to_drop:
 
             # Find the correlated features
-            corr_features = list(upper_corrs.index[upper_corrs[column] > correlation_threshold])
+            corr_features = list(upper.index[upper[column] > correlation_threshold])
 
             # Find the correlated values
-            corr_values = list(upper_corrs[column][upper_corrs[column] > correlation_threshold])
+            corr_values = list(upper[column][upper[column] > correlation_threshold])
             drop_features = [column for _ in range(len(corr_features))]    
 
             # Record the information (need a temp df for now)
