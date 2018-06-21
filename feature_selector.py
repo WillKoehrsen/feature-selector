@@ -587,7 +587,7 @@ class FeatureSelector():
             
         # Need to adjust number of features if greater than the features in the data
         if plot_n > self.feature_importances.shape[0]:
-            plot_n = self.feature_importances.shape - 1
+            plot_n = self.feature_importances.shape[0] - 1
 
         self.reset_plot()
         
