@@ -534,6 +534,7 @@ class FeatureSelector():
             - The features on the x-axis are those that will be removed. The features on the y-axis
             are the correlated features with those on the x-axis
         
+        Code adapted from https://seaborn.pydata.org/examples/many_pairwise_correlations.html
         """
         
         if self.record_collinear is None:
