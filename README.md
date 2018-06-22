@@ -1,6 +1,8 @@
 # feature-selector
 Development and implementation of the feature selector
 
+Refer to the [Feature Selector Usage notebook](https://github.com/WillKoehrsen/feature-selector/blob/master/Feature%20Selector%20Usage.ipynb) for how to use
+
 The feature selector is a class for removing features for a dataset intended
 for machine learning. There are five methods used to identify features to remove:
 
@@ -13,11 +15,10 @@ for machine learning. There are five methods used to identify features to remove
 The `FeatureSelector` also includes a number of visualization methods to inspect 
 characteristics of a dataset. 
 
-Refer to the Feature Selector Usage notebook for how to use
-
 Requires:
 
 ```
+python==3.6+
 lightgbm==2.1.1
 numpy==1.14.5
 pandas==0.23.1
