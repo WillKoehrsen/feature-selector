@@ -120,6 +120,9 @@ class FeatureSelector():
         missing_series = self.data.isnull().sum() / self.data.shape[0]
         self.missing_stats = pd.DataFrame(missing_series).rename(columns = {'index': 'feature', 0: 'missing_fraction'})
 
+        # Sort with highest number of missing values on top
+        self.missing_stats = self.missing_stats.sort_values('missing_fraction', ascending = False)
+
         # Find the columns with a missing percentage above the threshold
         record_missing = pd.DataFrame(missing_series[missing_series > missing_threshold]).reset_index().rename(columns = 
                                                                                                                {'index': 'feature', 
@@ -138,6 +141,7 @@ class FeatureSelector():
         # Calculate the unique counts in each column
         unique_counts = self.data.nunique()
         self.unique_stats = pd.DataFrame(unique_counts).rename(columns = {'index': 'feature', 0: 'nunique'})
+        self.unique_stats = self.unique_stats.sort_values('nunique', ascending = True)
         
         # Find the columns with only one unique count
         record_single_unique = pd.DataFrame(unique_counts[unique_counts == 1]).reset_index().rename(columns = {'index': 'feature', 
@@ -220,7 +224,7 @@ class FeatureSelector():
         self.record_collinear = record_collinear
         self.ops['collinear'] = to_drop
         
-        print('%d features with a correlation greater than %0.2f.\n' % (len(self.ops['collinear']), self.correlation_threshold))
+        print('%d features with a correlation magnitude greater than %0.2f.\n' % (len(self.ops['collinear']), self.correlation_threshold))
 
     def identify_zero_importance(self, task, eval_metric=None, 
                                  n_iterations=10, early_stopping = True):
@@ -371,7 +375,7 @@ class FeatureSelector():
     
         print('%d features required for cumulative importance of %0.2f after one hot encoding.' % (len(self.feature_importances) -
                                                                             len(self.record_low_importance), self.cumulative_importance))
-        print('%d features that do not contribute to cumulative importance of %0.2f.\n' % (len(self.ops['low_importance']),
+        print('%d features do not contribute to cumulative importance of %0.2f.\n' % (len(self.ops['low_importance']),
                                                                                                self.cumulative_importance))
         
     def identify_all(self, selection_params):
@@ -511,9 +515,14 @@ class FeatureSelector():
             raise NotImplementedError("Missing values have not been calculated. Run `identify_missing`")
         
         self.reset_plot()
-        self.missing_stats.plot.hist(color = 'red', edgecolor = 'k', figsize = (7, 5), fontsize = 14)
-        plt.ylabel('Frequency', size = 18)
-        plt.xlabel('Missing Fraction', size = 18); plt.title('Missing Fraction Histogram', size = 18);
+        
+        # Histogram of missing values
+        plt.style.use('seaborn-white')
+        plt.figure(figsize = (7, 5))
+        plt.hist(self.missing_stats['missing_fraction'], bins = np.linspace(0, 1, 11), edgecolor = 'k', color = 'red', linewidth = 1.5)
+        plt.xticks(np.linspace(0, 1, 11));
+        plt.xlabel('Missing Fraction', size = 14); plt.ylabel('Count of Features', size = 14); 
+        plt.title("Fraction of Missing Values Histogram", size = 16);
         
     
     def plot_unique(self):
@@ -522,9 +531,11 @@ class FeatureSelector():
             raise NotImplementedError('Unique values have not been calculated. Run `identify_single_unique`')
         
         self.reset_plot()
-        self.unique_stats.plot.hist(edgecolor = 'k', figsize = (7, 5), fontsize = 14)
-        plt.ylabel('Frequency', size = 18)
-        plt.xlabel('Unique Values', size = 18); plt.title('Unique Values Histogram', size = 18);
+
+        # Histogram of number of unique values
+        self.unique_stats.plot.hist(edgecolor = 'k', figsize = (7, 5))
+        plt.ylabel('Frequency', size = 14); plt.xlabel('Unique Values', size = 14); 
+        plt.title('Number of Unique Values Histogram', size = 16);
         
     
     def plot_collinear(self, plot_all = False):
