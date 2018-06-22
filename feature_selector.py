@@ -43,7 +43,7 @@ class FeatureSelector():
     Attributes
     --------
     
-    removal_ops : dict
+    ops : dict
         Dictionary of operations run and features identified for removal
         
     missing_stats : dataframe
@@ -107,7 +107,7 @@ class FeatureSelector():
         self.feature_importances = None
         
         # Dictionary to hold removal operations
-        self.removal_ops = {}
+        self.ops = {}
         
         self.one_hot_correlated = False
         
@@ -128,9 +128,9 @@ class FeatureSelector():
         to_drop = list(record_missing['feature'])
 
         self.record_missing = record_missing
-        self.removal_ops['missing'] = to_drop
+        self.ops['missing'] = to_drop
         
-        print('%d features with greater than %0.2f missing values.\n' % (len(self.removal_ops['missing']), self.missing_threshold))
+        print('%d features with greater than %0.2f missing values.\n' % (len(self.ops['missing']), self.missing_threshold))
         
     def identify_single_unique(self):
         """Finds features with only a single unique value. NaNs do not count as a unique value. """
@@ -146,9 +146,9 @@ class FeatureSelector():
         to_drop = list(record_single_unique['feature'])
     
         self.record_single_unique = record_single_unique
-        self.removal_ops['single_unique'] = to_drop
+        self.ops['single_unique'] = to_drop
         
-        print('%d features with a single unique value.\n' % len(self.removal_ops['single_unique']))
+        print('%d features with a single unique value.\n' % len(self.ops['single_unique']))
     
     def identify_collinear(self, correlation_threshold, one_hot=False):
         """
@@ -218,9 +218,9 @@ class FeatureSelector():
             record_collinear = record_collinear.append(temp_df, ignore_index = True)
 
         self.record_collinear = record_collinear
-        self.removal_ops['collinear'] = to_drop
+        self.ops['collinear'] = to_drop
         
-        print('%d features with a correlation greater than %0.2f.\n' % (len(self.removal_ops['collinear']), self.correlation_threshold))
+        print('%d features with a correlation greater than %0.2f.\n' % (len(self.ops['collinear']), self.correlation_threshold))
 
     def identify_zero_importance(self, task, eval_metric=None, 
                                  n_iterations=10, early_stopping = True):
@@ -333,9 +333,9 @@ class FeatureSelector():
 
         self.feature_importances = feature_importances
         self.record_zero_importance = record_zero_importance
-        self.removal_ops['zero_importance'] = to_drop
+        self.ops['zero_importance'] = to_drop
         
-        print('\n%d features with zero importance after one-hot encoding.\n' % len(self.removal_ops['zero_importance']))
+        print('\n%d features with zero importance after one-hot encoding.\n' % len(self.ops['zero_importance']))
     
     def identify_low_importance(self, cumulative_importance):
         """
@@ -367,11 +367,11 @@ class FeatureSelector():
         to_drop = list(record_low_importance['feature'])
 
         self.record_low_importance = record_low_importance
-        self.removal_ops['low_importance'] = to_drop
+        self.ops['low_importance'] = to_drop
     
         print('%d features required for cumulative importance of %0.2f after one hot encoding.' % (len(self.feature_importances) -
                                                                             len(self.record_low_importance), self.cumulative_importance))
-        print('%d features that do not contribute to cumulative importance of %0.2f.\n' % (len(self.removal_ops['low_importance']),
+        print('%d features that do not contribute to cumulative importance of %0.2f.\n' % (len(self.ops['low_importance']),
                                                                                                self.cumulative_importance))
         
     def identify_all(self, selection_params):
@@ -400,7 +400,7 @@ class FeatureSelector():
         self.identify_low_importance(selection_params['cumulative_importance'])
         
         # Find the number of features identified to drop
-        self.all_identified = set(list(chain(*list(self.removal_ops.values()))))
+        self.all_identified = set(list(chain(*list(self.ops.values()))))
         self.n_identified = len(self.all_identified)
         
         print('%d total features out of %d identified for removal after one-hot encoding.\n' % (self.n_identified, 
@@ -410,7 +410,7 @@ class FeatureSelector():
         
         """Check the identified features before removal. Returns a list of the unique features identified."""
         
-        self.all_identified = set(list(chain(*list(self.removal_ops.values()))))
+        self.all_identified = set(list(chain(*list(self.ops.values()))))
         print('Total of %d features identified for removal' % len(self.all_identified))
         
         if not keep_one_hot:
@@ -457,10 +457,10 @@ class FeatureSelector():
             # Need to use one-hot encoded data as well
             data = self.data_all
                                           
-            print('{} methods have been run\n'.format(list(self.removal_ops.keys())))
+            print('{} methods have been run\n'.format(list(self.ops.keys())))
             
             # Find the unique features to drop
-            features_to_drop = set(list(chain(*list(self.removal_ops.values()))))
+            features_to_drop = set(list(chain(*list(self.ops.values()))))
             
         else:
             # Need to use one-hot encoded data as well
@@ -474,12 +474,12 @@ class FeatureSelector():
             for method in methods:
                 
                 # Check to make sure the method has been run
-                if method not in self.removal_ops.keys():
+                if method not in self.ops.keys():
                     raise NotImplementedError('%s method has not been run' % method)
                     
                 # Append the features identified for removal
                 else:
-                    features_to_drop.append(self.removal_ops[method])
+                    features_to_drop.append(self.ops[method])
         
             # Find the unique features to drop
             features_to_drop = set(list(chain(*features_to_drop)))
@@ -498,7 +498,11 @@ class FeatureSelector():
         data = data.drop(columns = features_to_drop)
         self.removed_features = features_to_drop
         
-        print('Removed %d features' % len(features_to_drop))
+        if not keep_one_hot:
+        	print('Removed %d features including one-hot features.' % len(features_to_drop))
+        else:
+        	print('Removed %d features.' % len(features_to_drop))
+        
         return data
     
     def plot_missing(self):
@@ -523,9 +527,10 @@ class FeatureSelector():
         plt.xlabel('Unique Values', size = 18); plt.title('Unique Values Histogram', size = 18);
         
     
-    def plot_collinear(self):
+    def plot_collinear(self, plot_all = False):
         """
-        Heatmap of the features with correlations above the correlated threshold in the data.
+        Heatmap of the correlation values. If plot_all = True plots all the correlations otherwise
+        plots only those features that have a correlation above the threshold
         
         Notes
         --------
@@ -540,10 +545,17 @@ class FeatureSelector():
         if self.record_collinear is None:
             raise NotImplementedError('Collinear features have not been idenfitied. Run `identify_collinear`.')
         
-        # Identify the correlations that were above the threshold
-        # columns (x-axis) are features to drop and rows (y_axis) are correlated pairs
-        corr_matrix_plot = self.corr_matrix.loc[list(set(self.record_collinear['corr_feature'])), 
-                                                list(set(self.record_collinear['drop_feature']))]
+        if plot_all:
+        	corr_matrix_plot = self.corr_matrix
+        	title = 'All Correlations'
+        
+        else:
+	        # Identify the correlations that were above the threshold
+	        # columns (x-axis) are features to drop and rows (y_axis) are correlated pairs
+	        corr_matrix_plot = self.corr_matrix.loc[list(set(self.record_collinear['corr_feature'])), 
+	                                                list(set(self.record_collinear['drop_feature']))]
+
+	        title = "Correlations Above Threshold"
 
        
         f, ax = plt.subplots(figsize=(10, 8))
@@ -555,16 +567,14 @@ class FeatureSelector():
         sns.heatmap(corr_matrix_plot, cmap=cmap, center=0,
                     linewidths=.25, cbar_kws={"shrink": 0.6})
 
-        # Set the ylabels (correlated features)
+        # Set the ylabels 
         ax.set_yticks([x + 0.5 for x in list(range(corr_matrix_plot.shape[0]))])
         ax.set_yticklabels(list(corr_matrix_plot.index), size = int(160 / corr_matrix_plot.shape[0]));
 
-        # Set the xlabels (features to drop)
+        # Set the xlabels 
         ax.set_xticks([x + 0.5 for x in list(range(corr_matrix_plot.shape[1]))])
         ax.set_xticklabels(list(corr_matrix_plot.columns), size = int(160 / corr_matrix_plot.shape[1]));
-        
-        plt.xlabel('Features to Remove', size = 8); plt.ylabel('Correlated Feature', size = 8)
-        plt.title("Correlations Above Threshold", size = 14)
+        plt.title(title, size = 14)
         
     def plot_feature_importances(self, plot_n = 15, threshold = None):
         """
