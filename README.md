@@ -41,3 +41,7 @@ pandas==0.23.1
 scikit-learn==0.19.1
 
 ```
+
+## Contact
+
+Any questions can be directed to wjk68@case.edu!
