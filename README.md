@@ -1,4 +1,4 @@
-# feature-selector
+# Feature Selector: Simple Feature Selection in Python
 
 Feature selector is a tool for dimensionality reduction of machine learning datasets
 
