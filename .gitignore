@@ -1,4 +1,5 @@
 # Compiled python modules
+__pycache__/
 *.pyc
 
 # Setuptools distribution folder
@@ -6,3 +7,8 @@
 
 # Python egg metadata
 /*.egg-info
+
+# Jupyter NB Checkpoints
+.ipynb_checkpoints/
+
+
