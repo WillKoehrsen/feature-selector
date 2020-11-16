@@ -292,7 +292,7 @@ class FeatureSelector():
         for _ in range(n_iterations):
 
             if task == 'classification':
-                model = lgb.LGBMClassifier(n_estimators=1000, learning_rate = 0.05, verbose = -1)
+                model = lgb.LGBMClassifier(n_estimators=1000, learning_rate = 0.05, verbose = -1,objective='multiclass',num_class = self.labels.nunique())
 
             elif task == 'regression':
                 model = lgb.LGBMRegressor(n_estimators=1000, learning_rate = 0.05, verbose = -1)
