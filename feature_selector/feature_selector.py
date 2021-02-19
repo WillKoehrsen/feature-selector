@@ -313,7 +313,10 @@ class FeatureSelector():
                 
             # If training using early stopping or using permutations need a validation set
             if early_stopping or importance_type == 'permutation':
-                train_features, valid_features, train_labels, valid_labels = train_test_split(features, labels, test_size = 0.2, stratify=labels)
+                if task == 'classification':
+                    train_features, valid_features, train_labels, valid_labels = train_test_split(features, labels, test_size = 0.2, stratify=labels)
+                elif task == 'regression':
+                    train_features, valid_features, train_labels, valid_labels = train_test_split(features, labels, test_size = 0.2)
                 
                 if early_stopping:
                     # Train the model with early stopping
