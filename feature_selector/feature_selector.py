@@ -274,8 +274,8 @@ class FeatureSelector():
         """
 
         if early_stopping and eval_metric is None:
-            raise ValueError("""eval metric must be provided with early stopping. Examples include "auc" for classification or
-                             "l2" for regression.""")
+            raise ValueError("""eval metric must be provided with early stopping. Examples include "auc" for classification,
+                             "l2" for regression, or "quantile" for quantile""")
             
         if self.labels is None:
             raise ValueError("No training labels provided.")
@@ -300,22 +300,34 @@ class FeatureSelector():
         print('Training Gradient Boosting Model\n')
         
         # Iterate through each fold
-        for _ in range(n_iterations):
+        lgb_params = {
+          'n_jobs': -1,
+          'n_estimators': 2000,
+          'learning_rate': 0.05,
+          'importance_type': importance_type
+        }
+        
+        for i in range(n_iterations):
 
             if task == 'classification':
-                model = lgb.LGBMClassifier(n_estimators=1000, learning_rate = 0.05, verbose = -1, importance_type=importance_type)
+                model = lgb.LGBMClassifier(**lgb_params)
 
             elif task == 'regression':
-                model = lgb.LGBMRegressor(n_estimators=1000, learning_rate = 0.05, verbose = -1, importance_type=importance_type)
+                model = lgb.LGBMRegressor(**lgb_params)
+            
+            elif task == 'quantile':
+              # try different alphas
+                alpha = 0.01 + 0.99/n_iterations*i
+                model = lgb.LGBMRegressor(objective='quantile', alpha=alpha, **lgb_params)
 
             else:
-                raise ValueError('Task must be either "classification" or "regression"')
+                raise ValueError('Task must be either "classification", "regression", or "quantile"')
                 
             # If training using early stopping or using permutations need a validation set
             if early_stopping or importance_type == 'permutation':
                 if task == 'classification':
                     train_features, valid_features, train_labels, valid_labels = train_test_split(features, labels, test_size = 0.2, stratify=labels)
-                elif task == 'regression':
+                elif task in ['regression', 'quantile']:
                     train_features, valid_features, train_labels, valid_labels = train_test_split(features, labels, test_size = 0.2)
                 
                 if early_stopping:
