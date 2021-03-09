@@ -4,6 +4,7 @@ import numpy as np
 
 # model used for feature importances
 import lightgbm as lgb
+from sklearn.inspection import permutation_importance
 
 # utility for early stopping with a validation set
 from sklearn.model_selection import train_test_split
@@ -227,7 +228,8 @@ class FeatureSelector():
         print('%d features with a correlation magnitude greater than %0.2f.\n' % (len(self.ops['collinear']), self.correlation_threshold))
 
     def identify_zero_importance(self, task, eval_metric=None, 
-                                 n_iterations=10, early_stopping = True):
+                                 n_iterations=10, early_stopping = True,
+                                 importance_type = 'split', n_permutations=10):
         """
         
         Identify the features with zero importance according to a gradient boosting machine.
@@ -251,6 +253,15 @@ class FeatureSelector():
             
         early_stopping : boolean, default = True
             Whether or not to use early stopping with a validation set when training
+            
+        importance_type : string, optional (default='split')
+            The type of feature importance to be used.
+            If 'split', numbers of times the feature is used in a model.
+            If 'gain', total gains of splits which use the feature.
+            If 'permutation', permutation importance is calcaulted based on sklearn.inspection.permutation_importance
+        
+        n_permutations : int, optional (default=10)
+            Number of permutation repeats for importance_type='permutation'
         
         
         Notes
@@ -263,8 +274,8 @@ class FeatureSelector():
         """
 
         if early_stopping and eval_metric is None:
-            raise ValueError("""eval metric must be provided with early stopping. Examples include "auc" for classification or
-                             "l2" for regression.""")
+            raise ValueError("""eval metric must be provided with early stopping. Examples include "auc" for classification,
+                             "l2" for regression, or "quantile" for quantile""")
             
         if self.labels is None:
             raise ValueError("No training labels provided.")
@@ -289,37 +300,61 @@ class FeatureSelector():
         print('Training Gradient Boosting Model\n')
         
         # Iterate through each fold
-        for _ in range(n_iterations):
+        lgb_params = {
+          'n_jobs': -1,
+          'n_estimators': 2000,
+          'learning_rate': 0.05,
+          'importance_type': importance_type
+        }
+        
+        for i in range(n_iterations):
 
             if task == 'classification':
-                model = lgb.LGBMClassifier(n_estimators=1000, learning_rate = 0.05, verbose = -1)
+                model = lgb.LGBMClassifier(**lgb_params)
 
             elif task == 'regression':
-                model = lgb.LGBMRegressor(n_estimators=1000, learning_rate = 0.05, verbose = -1)
+                model = lgb.LGBMRegressor(**lgb_params)
+            
+            elif task == 'quantile':
+              # try different alphas
+                alpha = 0.01 + 0.99/n_iterations*i
+                model = lgb.LGBMRegressor(objective='quantile', alpha=alpha, **lgb_params)
 
             else:
-                raise ValueError('Task must be either "classification" or "regression"')
+                raise ValueError('Task must be either "classification", "regression", or "quantile"')
                 
-            # If training using early stopping need a validation set
-            if early_stopping:
+            # If training using early stopping or using permutations need a validation set
+            if early_stopping or importance_type == 'permutation':
+                if task == 'classification':
+                    train_features, valid_features, train_labels, valid_labels = train_test_split(features, labels, test_size = 0.2, stratify=labels)
+                elif task in ['regression', 'quantile']:
+                    train_features, valid_features, train_labels, valid_labels = train_test_split(features, labels, test_size = 0.2)
                 
-                train_features, valid_features, train_labels, valid_labels = train_test_split(features, labels, test_size = 0.15, stratify=labels)
-
-                # Train the model with early stopping
-                model.fit(train_features, train_labels, eval_metric = eval_metric,
-                          eval_set = [(valid_features, valid_labels)],
-                          early_stopping_rounds = 100, verbose = -1)
-                
-                # Clean up memory
-                gc.enable()
-                del train_features, train_labels, valid_features, valid_labels
-                gc.collect()
+                if early_stopping:
+                    # Train the model with early stopping
+                    model.fit(train_features, train_labels, eval_metric = eval_metric,
+                              eval_set = [(valid_features, valid_labels)],
+                              early_stopping_rounds = 100, verbose = -1)
+                else:
+                    model.fit(train_features, train_labels)
                 
             else:
                 model.fit(features, labels)
 
             # Record the feature importances
-            feature_importance_values += model.feature_importances_ / n_iterations
+            if importance_type == 'permutation':
+                # calculate permutation importance
+                r = permutation_importance(model, valid_features, valid_labels,
+                           n_repeats=n_permutations, n_jobs = -1)
+                feature_importance_values += r.importances_mean / n_iterations
+              
+            else: 
+                feature_importance_values += model.feature_importances_ / n_iterations
+                
+            # Clean up memory
+            gc.enable()
+            del train_features, train_labels, valid_features, valid_labels
+            gc.collect()
 
         feature_importances = pd.DataFrame({'feature': feature_names, 'importance': feature_importance_values})
 
@@ -327,11 +362,12 @@ class FeatureSelector():
         feature_importances = feature_importances.sort_values('importance', ascending = False).reset_index(drop = True)
 
         # Normalize the feature importances to add up to one
-        feature_importances['normalized_importance'] = feature_importances['importance'] / feature_importances['importance'].sum()
+        postive_features_sum = (feature_importances['importance'] * (feature_importances['importance'] >= 0)).sum()
+        feature_importances['normalized_importance'] = feature_importances['importance'] / postive_features_sum
         feature_importances['cumulative_importance'] = np.cumsum(feature_importances['normalized_importance'])
 
-        # Extract the features with zero importance
-        record_zero_importance = feature_importances[feature_importances['importance'] == 0.0]
+        # Extract the features with zero or negative importance
+        record_zero_importance = feature_importances[feature_importances['importance'] <= 0.0]
         
         to_drop = list(record_zero_importance['feature'])
 
@@ -339,7 +375,7 @@ class FeatureSelector():
         self.record_zero_importance = record_zero_importance
         self.ops['zero_importance'] = to_drop
         
-        print('\n%d features with zero importance after one-hot encoding.\n' % len(self.ops['zero_importance']))
+        print('\n%d features with zero or negative importance after one-hot encoding.\n' % len(self.ops['zero_importance']))
     
     def identify_low_importance(self, cumulative_importance):
         """
@@ -387,7 +423,7 @@ class FeatureSelector():
             
         selection_params : dict
            Parameters to use in the five feature selection methhods.
-           Params must contain the keys ['missing_threshold', 'correlation_threshold', 'eval_metric', 'task', 'cumulative_importance']
+           Params must contain the keys ['missing_threshold', 'correlation_threshold', 'eval_metric', 'task', 'cumulative_importance', 'importance_type']
         
         """
         
@@ -400,7 +436,8 @@ class FeatureSelector():
         self.identify_missing(selection_params['missing_threshold'])
         self.identify_single_unique()
         self.identify_collinear(selection_params['correlation_threshold'])
-        self.identify_zero_importance(task = selection_params['task'], eval_metric = selection_params['eval_metric'])
+        self.identify_zero_importance(task = selection_params['task'], eval_metric = selection_params['eval_metric'], 
+                                      importance_type = selection_params['importance_type'])
         self.identify_low_importance(selection_params['cumulative_importance'])
         
         # Find the number of features identified to drop
