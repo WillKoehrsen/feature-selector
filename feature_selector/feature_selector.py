@@ -293,7 +293,9 @@ class FeatureSelector():
 
             if task == 'classification':
                 model = lgb.LGBMClassifier(n_estimators=1000, learning_rate = 0.05, verbose = -1)
-
+                if len(set(self.labels))>2:
+                    eval_metric = 'auc_mu'
+                    model = lgb.LGBMClassifier(n_estimators=1000, learning_rate = 0.05, verbose = -1,objective='multiclass',num_class = len(set(self.labels)))
             elif task == 'regression':
                 model = lgb.LGBMRegressor(n_estimators=1000, learning_rate = 0.05, verbose = -1)
 
