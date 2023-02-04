@@ -44,3 +44,6 @@ scikit-learn==0.19.1
 ## Contact
 
 Any questions can be directed to wjk68@case.edu!
+
+## License
+The contents of this repository is under an [GNU General Public License v3.0](https://github.com/WillKoehrsen/feature-selector/blob/master/LICENSE).
